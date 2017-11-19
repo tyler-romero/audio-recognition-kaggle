@@ -4,7 +4,7 @@ from glob import glob
 import numpy as np
 from tqdm import tqdm
 
-from utils import label_to_num, WAV_SIZE
+from utils import label_to_num
 
 
 # Load a single wave file, return a numpy array
@@ -14,15 +14,15 @@ def load_wav(file_name):
     return wav
 
 
-# Load the dataset, return a 2D Numpy array X: (num_examples, WAV_SIZE)
+# Load the dataset, return a 2D Numpy array X: (num_examples, FLAGS.sample_rate)
 # and a list of class labels y: (num_examples)
-def load_dataset(data_dir="../data/train", mode="train"):
+def load_dataset(FLAGS, mode="train"):
     print("loading dataset")
 
     # Get file paths
-    val_list_file = os.path.join(data_dir, "validation_list.txt")
-    test_list_file = os.path.join(data_dir, "testing_list.txt")
-    audio_dir = os.path.join(data_dir, "audio/*/")
+    val_list_file = os.path.join(FLAGS.data_dir, "validation_list.txt")
+    test_list_file = os.path.join(FLAGS.data_dir, "testing_list.txt")
+    audio_dir = os.path.join(FLAGS.data_dir, "audio/*/")
 
     # Load metadata
     val_list = [line.strip() for line in open(val_list_file, 'r')]
@@ -52,7 +52,7 @@ def load_dataset(data_dir="../data/train", mode="train"):
                 wav = load_wav(file_path)
 
                 # For now skip all files that arent 1 sec
-                if len(wav) != WAV_SIZE:
+                if len(wav) != FLAGS.sample_rate:
                     excluded += 1
                     continue
 
@@ -86,7 +86,7 @@ def load_dataset(data_dir="../data/train", mode="train"):
                 wav = load_wav(file_path)
 
                 # For now skip all files that arent 1 sec
-                if len(wav) != WAV_SIZE:
+                if len(wav) != FLAGS.sample_rate:
                     excluded += 1
                     continue
 
@@ -118,7 +118,7 @@ def load_dataset(data_dir="../data/train", mode="train"):
                 wav = load_wav(file_path)
 
                 # For now skip all files that arent 1 sec
-                if len(wav) != WAV_SIZE:
+                if len(wav) != FLAGS.sample_rate:
                     excluded += 1
                     continue
 

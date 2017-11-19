@@ -14,11 +14,11 @@ FLAGS = None
 def main(_):
     tf.logging.set_verbosity(tf.logging.INFO)
 
-    # Start a new TensorFlow session.
+    # Start a new, DEFAULT TensorFlow session.
     sess = tf.InteractiveSession()
 
-    X_train, y_train = data_utils.load_dataset(FLAGS.data_dir, mode="train")
-    #X_val, y_val = data_utils.load_dataset(FLAGS.data_dir, mode="val")
+    X_train, y_train = data_utils.load_dataset(FLAGS, mode="train")
+    # X_val, y_val = data_utils.load_dataset(FLAGS.data_dir, mode="val")
 
     model = models.create_model(FLAGS.model_architecture)
     experiment = Experiment(FLAGS, model)
