@@ -17,7 +17,13 @@ def main(_):
     # Start a new TensorFlow session.
     sess = tf.InteractiveSession()
 
-    data_utils.load_dataset(FLAGS.data_dir, mode="train")
+    X_train, y_train = data_utils.load_dataset(FLAGS.data_dir, mode="train")
+    #X_val, y_val = data_utils.load_dataset(FLAGS.data_dir, mode="val")
+
+    model = models.create_model(FLAGS.model_architecture)
+    experiment = Experiment(FLAGS, model)
+
+    experiment.optimize()
 
 
 # Set up parser
@@ -26,7 +32,7 @@ if __name__ == '__main__':
     parser.add_argument(
         '--data_dir',
         type=str,
-        default='../data/train',
+        default='data/train',
         help="""\
         Where the speach data is located
         """)
@@ -148,7 +154,7 @@ if __name__ == '__main__':
     parser.add_argument(
         '--model_architecture',
         type=str,
-        default='conv',
+        default='Baseline',
         help='What model architecture to use')
     parser.add_argument(
         '--check_nans',

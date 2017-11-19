@@ -1,3 +1,3 @@
 #!/usr/bin/env bash
 
-python train.py
+python code/train.py
