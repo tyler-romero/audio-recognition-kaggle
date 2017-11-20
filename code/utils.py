@@ -1,5 +1,5 @@
-
-WAV_SIZE = 16000
+import random
+import math
 
 label_to_num = {
     "bed": 0,
@@ -34,3 +34,33 @@ label_to_num = {
     "zero": 29,
     "_background_noise_": 30
 }
+
+
+def gather_params(FLAGS):
+    params = {
+        "debug": FLAGS.debug,
+        "num_classes": FLAGS.num_classes,
+        "sample_rate": FLAGS.sample_rate,
+        "epochs": FLAGS.epochs,
+        "initial_learning_rate": FLAGS.learning_rate,
+        "batch_size": FLAGS.batch_size,
+        "model_architecture": FLAGS.model_architecture
+    }
+    return params
+
+
+def get_batches(X, y, batch_size):
+    dataset = list(zip(X, y))
+    random.shuffle(dataset)
+    X, y = zip(*dataset)    # Returns a tuple of lists
+    num_batches = int(math.ceil(len(X)/float(batch_size)))
+
+    X_batches = []
+    y_batches = []
+    for i in range(num_batches):
+        start_ind = i * batch_size
+        end_ind = min(len(dataset), i * batch_size + batch_size)
+        X_batches.append(X[start_ind:end_ind])
+        y_batches.append(y[start_ind:end_ind])
+
+    return X_batches, y_batches, num_batches

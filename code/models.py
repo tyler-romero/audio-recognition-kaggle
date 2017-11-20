@@ -1,10 +1,12 @@
 import tensorflow as tf
-from tensorflow.contrib import layers
+from tensorflow import layers
 
 
 def create_model(FLAGS):
-    if FLAGS.architecture == "Baseline":
+    if FLAGS.model_architecture == "Baseline":
         return Baseline(FLAGS)
+    if FLAGS.model_architecture == "SimpleConv":
+        return SimpleConv(FLAGS)
     else:
         raise Exception("Invalid model architecture")
 
@@ -28,20 +30,10 @@ class Model():
         """
         l = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=y, logits=self.raw_scores)
         loss = tf.reduce_mean(l)
-        regs = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
-        print("Number of regularizers: ", len(regs))
-        reg_loss = self.FLAGS.weight_decay * tf.reduce_sum(regs)
-        return loss + reg_loss
+        return loss
 
     def get_optimizer(self, lr):
-        if self.FLAGS.optimizer == "adam":
-            return tf.train.AdamOptimizer(lr)   # Recommended lr of 1e-3
-        elif self.FLAGS.optimizer == 'nesterov':   
-            return tf.train.MomentumOptimizer(lr, momentum=0.9, use_nesterov=True)   # Recommended lr of 0.1
-        elif self.FLAGS.optimizer == 'rmsprop':
-            return tf.train.RMSPropOptimizer(lr)    # Recommended lr of 1e-2
-        else:
-            raise Exception("InvalidOptimizerError")
+        return tf.train.AdamOptimizer(lr)   # Recommended lr of 1e-3
 
     def train_op(self, lr, step, loss):
         """
@@ -60,14 +52,12 @@ class Model():
 
         grads_and_vars = optimizer.compute_gradients(loss, tf.trainable_variables())
         grads = [g for g, v in grads_and_vars]
-        variables = [v for g, v in grads_and_vars]
-
-        clipped_grads, global_norm = tf.clip_by_global_norm(grads, self.FLAGS.max_gradient_norm)
+        global_norm = tf.global_norm(grads)
 
         # Batch Norm in tensorflow requires this extra dependency
-        extra_update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
-        with tf.control_dependencies(extra_update_ops):
-            train_op = optimizer.apply_gradients(zip(clipped_grads, variables), global_step=step, name="apply_clipped_grads")
+        update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+        with tf.control_dependencies(update_ops):
+            train_op = optimizer.apply_gradients(grads_and_vars, global_step=step)
 
         return train_op, global_norm
 
@@ -78,5 +68,30 @@ class Baseline(Model):
     def __init__(self, FLAGS):
         super().__init__(FLAGS)
 
-    def forward():
+    def forward(self, x, is_training):
+        x = layers.batch_normalization(x, training=is_training)
+        x = layers.dense(inputs=x, units=100, activation=tf.nn.relu)
+        self.raw_scores = layers.dense(inputs=x, units=self.FLAGS.num_classes, activation=None)
+        return self.raw_scores
 
+
+class SimpleConv(Model):
+    def __init__(self, FLAGS):
+        super().__init__(FLAGS)
+
+    def forward(self, x, is_training):
+        x = layers.batch_normalization(x, training=is_training)  # Automatically standardize inputs
+
+        x = tf.expand_dims(x, -1)  # Add a channel dimension
+
+        x = layers.conv1d(x, filters=10, kernel_size=5, strides=1, padding="valid", activation=tf.nn.relu)
+        x = layers.conv1d(x, filters=20, kernel_size=5, strides=1, padding="valid", activation=tf.nn.relu)
+        x = layers.max_pooling1d(x, pool_size=2, strides=2)
+        x = layers.conv1d(x, filters=30, kernel_size=5, strides=1, padding="valid", activation=tf.nn.relu)
+        x = layers.conv1d(x, filters=40, kernel_size=5, strides=1, padding="valid", activation=tf.nn.relu)
+        x = layers.max_pooling1d(x, pool_size=2, strides=2)
+
+        x = tf.contrib.layers.flatten(x)
+
+        self.raw_scores = layers.dense(inputs=x, units=self.FLAGS.num_classes, activation=None)
+        return self.raw_scores

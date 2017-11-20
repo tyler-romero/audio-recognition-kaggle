@@ -17,7 +17,7 @@ def load_wav(file_name):
 # Load the dataset, return a 2D Numpy array X: (num_examples, FLAGS.sample_rate)
 # and a list of class labels y: (num_examples)
 def load_dataset(FLAGS, mode="train"):
-    print("loading dataset")
+    print("loading dataset: {}".format(mode))
 
     # Get file paths
     val_list_file = os.path.join(FLAGS.data_dir, "validation_list.txt")
@@ -36,6 +36,10 @@ def load_dataset(FLAGS, mode="train"):
         y = []
 
         # Iterate over each class directory
+        if FLAGS.debug:
+            dir_list = dir_list[:3]
+        num_classes = len(dir_list)
+
         for label_dir in tqdm(dir_list):
             file_list = glob(os.path.join(label_dir, "*.wav"))
             label = label_dir.split('/')[-2]
@@ -60,16 +64,18 @@ def load_dataset(FLAGS, mode="train"):
                 y.append(label_to_num[label])
         
         print("examples excluded: {}".format(excluded))
-        X = np.asarray(X)
-        y = np.asarray(y)
-        print("X", X.shape)
-        print("y", y.shape)
-        return X, y
+        print("X", len(X))
+        print("y", len(y))
+        return X, y, num_classes
 
     elif mode == "val":
         y = []
 
         # Iterate over each class directory
+        if FLAGS.debug:
+            dir_list = dir_list[:3]
+        num_classes = len(dir_list)
+
         for label_dir in tqdm(dir_list):
             file_list = glob(os.path.join(label_dir, "*.wav"))
             label = label_dir.split('/')[-2]
@@ -94,11 +100,10 @@ def load_dataset(FLAGS, mode="train"):
                 y.append(label_to_num[label])
         
         print("examples excluded: {}".format(excluded))
-        X = np.asarray(X)
-        y = np.asarray(y)
-        print("X", X.shape)
-        print("y", y.shape)
-        return X, y
+
+        print("X", len(X))
+        print("y", len(y))
+        return X, y, num_classes
 
     elif mode == "test":
         # Iterate over each class directory
@@ -126,8 +131,7 @@ def load_dataset(FLAGS, mode="train"):
                 y.append(label_to_num[label])
         
         print("examples excluded: {}".format(excluded))
-        X = np.asarray(X)
-        print("X", X.shape)
+        print("X", len(X))
         return X
 
     else:

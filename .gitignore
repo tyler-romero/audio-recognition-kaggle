@@ -103,5 +103,7 @@ ENV/
 # project specific
 benchmark/
 data/
+models/
+log/
 *.wav
 *.pb
