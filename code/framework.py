@@ -1,6 +1,7 @@
-import random
+import os
 import sys
 import math
+import random
 import numpy as np
 import tensorflow as tf
 from tensorflow.python.ops import variable_scope as vs
@@ -84,6 +85,7 @@ class Framework():
         return preds
 
     # Calculate the current accuracy of the model
+    # TODO: Also calculate val loss
     def evaluate(self, X, y, sample_size=None):
         dataset = list(zip(X, y))
         if sample_size is None:
@@ -128,13 +130,12 @@ class Framework():
 
     # The complete optimization function that fits the model
     def optimize(self, X_train, y_train, X_val, y_val):
-        # Helper stuff
         num_data = len(X_train)
 
         # Epoch level loop
         best_acc = 0.0
-        step = 1
         for cur_epoch in range(self.FLAGS.epochs):
+            # Randomly shuffle data and divide into batches
             X_batches, y_batches, num_batches = get_batches(
                 X_train, y_train, self.FLAGS.batch_size
             )

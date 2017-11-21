@@ -84,7 +84,9 @@ def get_batches(X, y, batch_size):
 
 
 def get_number_of_params():
-    return np.sum([np.prod(v.get_shape().as_list()) for v in tf.trainable_variables()])
+    return np.sum(
+        [np.prod(v.get_shape().as_list()) for v in tf.trainable_variables()]
+    )
 
 
 def calc_range(l):

@@ -8,6 +8,9 @@ from tensorflow.contrib.framework.python.ops import audio_ops as contrib_audio
 
 from utils import *
 
+# TODO: Data augmentation
+#   * Add background noise
+#   * Time shifts
 
 # TODO: Simplify this   
 def load_dataset_tf(FLAGS, mode="train"):
@@ -79,7 +82,7 @@ class AudioLoader():
         # Perform preprocessing
         wav_filename_placeholder = tf.placeholder(tf.string, [])
         wav_loader = io_ops.read_file(wav_filename_placeholder)
-        self.wav_data_placeholder = tf.placeholder(tf.string, [], name='wav_data')
+        self.wav_data_placeholder = tf.placeholder(tf.string, [], name='wav')
         wav_loader = io_ops.read_file(self.wav_data_placeholder)
         decoded_sample_data = contrib_audio.decode_wav(
             wav_loader,

@@ -10,8 +10,6 @@ import models
 import framework
 import utils
 
-# TODO: remove all dependencies other than tensorflow
-
 
 tf.app.flags.DEFINE_float("learning_rate", 1e-3, "Learning rate.")
 tf.app.flags.DEFINE_integer("batch_size", 128, "Number of examples per batch.")
@@ -50,7 +48,9 @@ def main(_):
     X_val, y_val = data_utils.load_dataset_tf(FLAGS, mode="val")
 
     # comet_ml experiment logging (https://www.comet.ml/)
-    experiment = Experiment(api_key="J55UNlgtffTDmziKUlszSMW2w", log_code=False)
+    experiment = Experiment(
+        api_key="J55UNlgtffTDmziKUlszSMW2w", log_code=False
+    )
     experiment.log_multiple_params(utils.gather_params(FLAGS))
     experiment.set_num_of_epocs(FLAGS.epochs)
     experiment.log_dataset_hash(X_train)
@@ -65,10 +65,10 @@ def main(_):
 
     num_params = int(utils.get_number_of_params())
     model_size = num_params * 4
+    print("\nNumber of trainable parameters: {}".format(num_params))
+    print("Model is ~ {} bytes out of max 5000000 bytes\n".format(model_size))
     experiment.log_parameter("num_params", num_params)
     experiment.log_parameter("approx_model_size", model_size)
-    print("Number of trainable parameters: {}".format(num_params))
-    print("Model size is approximatelly {} bytes out of an available 5000000 bytes".format(model_size))
 
     fw.optimize(X_train, y_train, X_val, y_val)
 
