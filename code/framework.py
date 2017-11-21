@@ -16,7 +16,9 @@ class Framework():
         self.FLAGS = FLAGS
 
         # Setup instance variables
-        self.global_step = tf.Variable(int(0), trainable=False, name="global_step")
+        self.global_step = tf.Variable(
+            int(0), trainable=False, name="global_step"
+        )
 
         # Set up placeholders
         self.learning_rate = tf.placeholder(tf.float32, name="learning_rate")
@@ -35,7 +37,18 @@ class Framework():
         sess.run(init)
         self.experiment.set_model_graph(sess.graph)
 
+        # Set up model saving
         self.saver = tf.train.Saver()
+        self.save_dir = os.path.join('models', self.FLAGS.model_architecture)
+        if not os.path.exists(self.save_dir):
+            os.mkdir(self.save_dir)
+
+        # Load model from checkpoint if needed
+        if FLAGS.restore:
+            saver.restore(self.sess, os.path.join(self.save_dir, 'model.ckpt'))
+            print("Model restored.")
+            print("Global Step: {}}".format(self.global_step.eval()))
+
 
     # Setup the specified loss function
     def setup_loss(self):
@@ -65,7 +78,7 @@ class Framework():
 
         output_feed = [self.y_out]
         outputs = self.sess.run(output_feed, input_feed)
-        outputs = outputs[0]  # Run returns the output feed as a list. We just want the first element
+        outputs = outputs[0]  # Run returns a list. Get the only element.
 
         preds = np.argmax(np.array(outputs), axis=1)
         return preds
@@ -136,8 +149,14 @@ class Framework():
                 # Print relevant params
                 num_complete = int(20 * (self.FLAGS.batch_size*i/num_data))
                 sys.stdout.write('\r')
-                sys.stdout.write("EPOCH: %d ==> (Batch Loss: %.3f) [%-20s] (%d/%d) [norm: %.2f] [step: %d]"
-                    % (cur_epoch + 1, loss, '=' * num_complete, min((i + 1) * self.FLAGS.batch_size, num_data), num_data, norm, step))
+                sys.stdout.write(
+                    "EPOCH %d: (Loss: %.3f) [%-20s] (%d/%d) [norm: %.2f] [step: %d]"
+                    % (
+                        cur_epoch + 1, loss, '=' * num_complete,
+                        min((i + 1) * self.FLAGS.batch_size, num_data),
+                        num_data, norm, step
+                    )
+                )
                 sys.stdout.flush()
 
                 self.experiment.log_step(int(step))
@@ -148,7 +167,7 @@ class Framework():
             eval_size = min(len(X_val), len(X_train)) // 10
 
             train_acc = self.evaluate(X_train, y_train, eval_size)
-            print("Training Accuracy: {}\t\ton {} examples".format(train_acc, eval_size))
+            print("Training Accuracy: {}\ton {} examples".format(train_acc, eval_size))
             self.experiment.log_metric("train_acc", train_acc)
 
             val_acc = self.evaluate(X_val, y_val, eval_size)
@@ -158,5 +177,7 @@ class Framework():
             # Early stopping
             if val_acc > best_acc:
                 best_acc = val_acc
-                save_path = saver.save(self.sess, "models/{}.ckpt".format(self.FLAGS.model_architecture))
+                save_path = self.saver.save(
+                    self.sess, os.path.join(self.save_dir, 'model.ckpt')
+                )
                 print("Model saved to: {}".format(save_path))

@@ -15,12 +15,13 @@ import utils
 
 tf.app.flags.DEFINE_float("learning_rate", 1e-3, "Learning rate.")
 tf.app.flags.DEFINE_integer("batch_size", 128, "Number of examples per batch.")
-tf.app.flags.DEFINE_integer("epochs", 10, "Number of epochs to train.")
+tf.app.flags.DEFINE_integer("epochs", 30, "Number of epochs to train.")
 tf.app.flags.DEFINE_string("model_architecture", "Baseline", "The name of the model.")
 tf.app.flags.DEFINE_string("data_dir", "data/train", "tiny-imagenet directory (default ./data/tiny-imagenet-200)")
 tf.app.flags.DEFINE_string("models_dir", "data/models", "Directory to save tf model checkpoints in")
 tf.app.flags.DEFINE_bool("debug", False, "Run on a small set of data for debugging.")
 tf.app.flags.DEFINE_bool("competition_labels", True, "Run only on the ten competiton lables.")
+tf.app.flags.DEFINE_bool("restore", False, "Restore model from checkpoint.")
 
 # Dont mess with these for now:
 tf.app.flags.DEFINE_integer("sample_rate", 16000, "Expected sample rate of the wavs.")
@@ -42,7 +43,7 @@ def main(_):
     if FLAGS.debug:
         FLAGS.competition_labels = False
         print("RUNNING IN DEBUG MODE")
-        
+
     FLAGS.num_classes = utils.get_num_classes(FLAGS)
 
     X_train, y_train = data_utils.load_dataset_tf(FLAGS, mode="train")
@@ -62,7 +63,7 @@ def main(_):
     model = models.create_model(FLAGS)  
     fw = framework.Framework(sess, model, experiment, FLAGS)
 
-    num_params = utils.get_number_of_params()
+    num_params = int(utils.get_number_of_params())
     model_size = num_params * 4
     experiment.log_parameter("num_params", num_params)
     experiment.log_parameter("approx_model_size", model_size)
