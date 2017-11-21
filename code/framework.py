@@ -1,4 +1,3 @@
-
 import random
 import sys
 import math
@@ -21,7 +20,7 @@ class Framework():
 
         # Set up placeholders
         self.learning_rate = tf.placeholder(tf.float32, name="learning_rate")
-        self.X = tf.placeholder(tf.float32, [None, FLAGS.sample_rate], name="X")
+        self.X = tf.placeholder(tf.float32, [None, 98, 40, 1], name="X")
         self.y = tf.placeholder(tf.int32, [None], name="y")
         self.is_training = tf.placeholder(tf.bool, name="is_training")
 
@@ -35,6 +34,8 @@ class Framework():
         init = tf.global_variables_initializer()
         sess.run(init)
         self.experiment.set_model_graph(sess.graph)
+
+        self.saver = tf.train.Saver()
 
     # Setup the specified loss function
     def setup_loss(self):
@@ -78,9 +79,9 @@ class Framework():
         eval_set = random.sample(dataset, sample_size)
 
         running_sum = 0
-        for wav, label in eval_set:
-            wav = np.expand_dims(wav, axis=0)
-            pred = self.classify(wav)
+        for spec, label in eval_set:
+            spec = np.expand_dims(spec, axis=0)
+            pred = self.classify(spec)
             correct_pred = np.equal(pred, label)
             running_sum += np.sum(correct_pred)
 
@@ -118,6 +119,7 @@ class Framework():
         num_data = len(X_train)
 
         # Epoch level loop
+        best_acc = 0.0
         step = 1
         for cur_epoch in range(self.FLAGS.epochs):
             X_batches, y_batches, num_batches = get_batches(
@@ -125,18 +127,17 @@ class Framework():
             )
 
             # Training loop
-            for _i, (X_batch, y_batch) in enumerate(zip(X_batches, y_batches)):
-                i = _i + 1  # For convienince
-
+            for i, (X_batch, y_batch) in enumerate(zip(X_batches, y_batches)):
                 # Optimatize using batch
                 loss, norm, step = self.step(X_batch, y_batch)
                 self.experiment.log_loss(loss)
+                self.experiment.log_metric("norm", norm)
 
                 # Print relevant params
                 num_complete = int(20 * (self.FLAGS.batch_size*i/num_data))
                 sys.stdout.write('\r')
                 sys.stdout.write("EPOCH: %d ==> (Batch Loss: %.3f) [%-20s] (%d/%d) [norm: %.2f] [step: %d]"
-                    % (cur_epoch + 1, loss, '=' * num_complete, min(i * self.FLAGS.batch_size, num_data), num_data, norm, step))
+                    % (cur_epoch + 1, loss, '=' * num_complete, min((i + 1) * self.FLAGS.batch_size, num_data), num_data, norm, step))
                 sys.stdout.flush()
 
                 self.experiment.log_step(int(step))
@@ -153,3 +154,9 @@ class Framework():
             val_acc = self.evaluate(X_val, y_val, eval_size)
             print("Validation Accuracy: {}\ton {} examples".format(val_acc, eval_size))
             self.experiment.log_accuracy(val_acc)
+
+            # Early stopping
+            if val_acc > best_acc:
+                best_acc = val_acc
+                save_path = saver.save(self.sess, "models/{}.ckpt".format(self.FLAGS.model_architecture))
+                print("Model saved to: {}".format(save_path))

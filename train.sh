@@ -1,3 +1,3 @@
 #!/usr/bin/env bash
 
-python code/train.py --model_architecture SimpleConv --debug
+python code/train.py --model_architecture SimpleConv

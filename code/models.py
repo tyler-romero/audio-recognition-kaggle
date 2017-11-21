@@ -80,18 +80,15 @@ class SimpleConv(Model):
         super().__init__(FLAGS)
 
     def forward(self, x, is_training):
-        x = layers.batch_normalization(x, training=is_training)  # Automatically standardize inputs
-
-        x = tf.expand_dims(x, -1)  # Add a channel dimension
-
-        x = layers.conv1d(x, filters=10, kernel_size=5, strides=1, padding="valid", activation=tf.nn.relu)
-        x = layers.conv1d(x, filters=20, kernel_size=5, strides=1, padding="valid", activation=tf.nn.relu)
-        x = layers.max_pooling1d(x, pool_size=2, strides=2)
-        x = layers.conv1d(x, filters=30, kernel_size=5, strides=1, padding="valid", activation=tf.nn.relu)
-        x = layers.conv1d(x, filters=40, kernel_size=5, strides=1, padding="valid", activation=tf.nn.relu)
-        x = layers.max_pooling1d(x, pool_size=2, strides=2)
+        # Assumes [B, T, F, C]
+        x = layers.conv2d(x, filters=64, kernel_size=[20, 8], strides=1, activation=tf.nn.relu)
+        x = layers.max_pooling2d(x, pool_size=[1, 3], strides=[1, 3])  # Pool over frequency only
+        x = layers.conv2d(x, filters=64, kernel_size=[10, 4], strides=1, activation=tf.nn.relu)
+        # x = layers.max_pooling2d(x, pool_size=[1, 1], strides=1)  # No max pooling
 
         x = tf.contrib.layers.flatten(x)
 
-        self.raw_scores = layers.dense(inputs=x, units=self.FLAGS.num_classes, activation=None)
+        # self.raw_scores = layers.dense(inputs=x, units=32, activation=None)  # Linear low rank
+        # self.raw_scores = layers.dense(inputs=x, units=128, activation=tf.nn.relu)  # DNN
+        self.raw_scores = layers.dense(inputs=x, units=self.FLAGS.num_classes, activation=None)  # Linear map to output
         return self.raw_scores

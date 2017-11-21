@@ -10,24 +10,43 @@ import models
 import framework
 import utils
 
+# TODO: remove all dependencies other than tensorflow
+
 
 tf.app.flags.DEFINE_float("learning_rate", 1e-3, "Learning rate.")
 tf.app.flags.DEFINE_integer("batch_size", 128, "Number of examples per batch.")
 tf.app.flags.DEFINE_integer("epochs", 10, "Number of epochs to train.")
 tf.app.flags.DEFINE_string("model_architecture", "Baseline", "The name of the model.")
-tf.app.flags.DEFINE_integer("sample_rate", 16000, "Expected sample rate of the wavs.")
 tf.app.flags.DEFINE_string("data_dir", "data/train", "tiny-imagenet directory (default ./data/tiny-imagenet-200)")
-tf.app.flags.DEFINE_float("time_shift_ms", 100.0, "Range to randomly shift the training audio by in time.")
+tf.app.flags.DEFINE_string("models_dir", "data/models", "Directory to save tf model checkpoints in")
 tf.app.flags.DEFINE_bool("debug", False, "Run on a small set of data for debugging.")
+tf.app.flags.DEFINE_bool("competition_labels", True, "Run only on the ten competiton lables.")
+
+# Dont mess with these for now:
+tf.app.flags.DEFINE_integer("sample_rate", 16000, "Expected sample rate of the wavs.")
+tf.app.flags.DEFINE_integer("clip_duration_ms", 1000, "Expected duration in milliseconds of the wavs.")
+tf.app.flags.DEFINE_integer("clip_stride_ms", 30, "How often to run recognition. Useful for models with cache.")
+tf.app.flags.DEFINE_integer("dct_coefficient_count", 40, "How many bins to use for the MFCC fingerprint.")
+tf.app.flags.DEFINE_float("window_size_ms", 30.0, "How long each spectrogram timeslice is.")
+tf.app.flags.DEFINE_float("window_stride_ms", 10.0, "How long the stride is between spectrogram timeslices.")
+tf.app.flags.DEFINE_float("time_shift_ms", 100.0, "Range to randomly shift the training audio by in time.")
+
 
 FLAGS = tf.app.flags.FLAGS
 
 
 def main(_):
-    print("Is this debug mode: {}".format(FLAGS.debug))
-    X_train, y_train, num_classes = data_utils.load_dataset(FLAGS, mode="train")
-    X_val, y_val, _ = data_utils.load_dataset(FLAGS, mode="val")
-    FLAGS.num_classes = num_classes
+    print("Model Architecture: {}".format(FLAGS.model_architecture))
+
+    # Adjust some parameters
+    if FLAGS.debug:
+        FLAGS.competition_labels = False
+        print("RUNNING IN DEBUG MODE")
+        
+    FLAGS.num_classes = utils.get_num_classes(FLAGS)
+
+    X_train, y_train = data_utils.load_dataset_tf(FLAGS, mode="train")
+    X_val, y_val = data_utils.load_dataset_tf(FLAGS, mode="val")
 
     # comet_ml experiment logging (https://www.comet.ml/)
     experiment = Experiment(api_key="J55UNlgtffTDmziKUlszSMW2w", log_code=False)
@@ -40,8 +59,15 @@ def main(_):
     # Start a new, DEFAULT TensorFlow session.
     sess = tf.InteractiveSession()
 
-    model = models.create_model(FLAGS)
+    model = models.create_model(FLAGS)  
     fw = framework.Framework(sess, model, experiment, FLAGS)
+
+    num_params = utils.get_number_of_params()
+    model_size = num_params * 4
+    experiment.log_parameter("num_params", num_params)
+    experiment.log_parameter("approx_model_size", model_size)
+    print("Number of trainable parameters: {}".format(num_params))
+    print("Model size is approximatelly {} bytes out of an available 5000000 bytes".format(model_size))
 
     fw.optimize(X_train, y_train, X_val, y_val)
 

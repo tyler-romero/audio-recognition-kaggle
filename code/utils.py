@@ -1,5 +1,7 @@
 import random
 import math
+import numpy as np
+import tensorflow as tf
 
 label_to_num = {
     "bed": 0,
@@ -35,6 +37,21 @@ label_to_num = {
     "_background_noise_": 30
 }
 
+small_label_to_num = {
+    "yes": 0,
+    "no": 1,
+    "up": 2,
+    "down": 3,
+    "left": 4,
+    "right": 5,
+    "on": 6,
+    "off": 7,
+    "stop": 8,
+    "go": 9,
+    "silence": 10,
+    "unknown": 11
+}
+
 
 def gather_params(FLAGS):
     params = {
@@ -64,3 +81,22 @@ def get_batches(X, y, batch_size):
         y_batches.append(y[start_ind:end_ind])
 
     return X_batches, y_batches, num_batches
+
+
+def get_number_of_params():
+    return np.sum([np.prod(v.get_shape().as_list()) for v in tf.trainable_variables()])
+
+
+def calc_range(l):
+    min_val = min(l)
+    max_val = max(l)
+    return (max_val - min_val) + 1
+
+
+def get_num_classes(FLAGS):
+    if FLAGS.debug:
+        return 3
+    elif FLAGS.competition_labels:
+        return len(small_label_to_num)
+    else:
+        return len(label_to_num)
