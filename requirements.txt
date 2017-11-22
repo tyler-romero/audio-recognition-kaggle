@@ -1,7 +1,4 @@
 numpy
 tensorflow
-scipy
 tqdm
-matplotlib
-jupyter
 comet_ml

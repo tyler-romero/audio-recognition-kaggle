@@ -15,6 +15,7 @@ class Framework():
         self.model = model
         self.experiment = experiment
         self.FLAGS = FLAGS
+        self.lr = self.FLAGS.learning_rate
 
         # Setup instance variables
         self.global_step = tf.Variable(
@@ -36,19 +37,24 @@ class Framework():
         # Initialize all variables/parameters
         init = tf.global_variables_initializer()
         sess.run(init)
-        self.experiment.set_model_graph(sess.graph)
+        if self.experiment is not None:
+            self.experiment.set_model_graph(sess.graph)
 
         # Set up model saving
         self.saver = tf.train.Saver()
-        self.save_dir = os.path.join('models', self.FLAGS.model_architecture)
+        self.save_dir = os.path.join(
+            self.FLAGS.models_dir, self.FLAGS.model_architecture
+        )
         if not os.path.exists(self.save_dir):
             os.mkdir(self.save_dir)
 
         # Load model from checkpoint if needed
         if FLAGS.restore:
-            saver.restore(self.sess, os.path.join(self.save_dir, 'model.ckpt'))
+            self.saver.restore(
+                self.sess, os.path.join(self.save_dir, self.FLAGS.save_name)
+                )
             print("Model restored.")
-            print("Global Step: {}}".format(self.global_step.eval()))
+            print("Global Step: {}".format(self.global_step.eval()))
 
 
     # Setup the specified loss function
@@ -59,7 +65,8 @@ class Framework():
     # Set up the forward pass
     def setup_system(self):
         with vs.variable_scope("classify"):
-            raw_scores = self.model.forward(self.X, self.is_training)
+            self.model.set_inputs(self.X)
+            raw_scores = self.model.forward(self.is_training)
             self.y_out = tf.nn.softmax(raw_scores, name="softmax")
 
     # Set up the optimization step
@@ -94,10 +101,10 @@ class Framework():
         eval_set = random.sample(dataset, sample_size)
 
         running_sum = 0
-        for spec, label in eval_set:
-            spec = np.expand_dims(spec, axis=0)
-            pred = self.classify(spec)
-            correct_pred = np.equal(pred, label)
+        for _x, _y in eval_set:
+            _x = np.expand_dims(_x, axis=0)
+            pred = self.classify(_x)
+            correct_pred = np.equal(pred, _y)
             running_sum += np.sum(correct_pred)
 
         accuracy = running_sum / sample_size
@@ -105,19 +112,11 @@ class Framework():
 
     # Perform a single batched update step
     def step(self, X_batch, y_batch):
-        """
-        FOR TRAINING ONLY
-        
-        Takes in actual data to optimize your model
-        This method is equivalent to a step() function
-        :return:
-            loss, global_norm, global_step
-        """
         input_feed = {}
         input_feed[self.X] = X_batch
         input_feed[self.y] = y_batch
         input_feed[self.is_training] = True
-        input_feed[self.learning_rate] = self.FLAGS.learning_rate
+        input_feed[self.learning_rate] = self.lr
 
         output_feed = []
         output_feed.append(self.train_op)
@@ -131,10 +130,13 @@ class Framework():
     # The complete optimization function that fits the model
     def optimize(self, X_train, y_train, X_val, y_val):
         num_data = len(X_train)
+        eval_size = min(len(X_val), len(X_train))
 
         # Epoch level loop
         best_acc = 0.0
-        for cur_epoch in range(self.FLAGS.epochs):
+        loss_hist_length = 15
+        recent_losses = [2.4] * loss_hist_length
+        for cur_epoch in range(1, self.FLAGS.epochs + 1):
             # Randomly shuffle data and divide into batches
             X_batches, y_batches, num_batches = get_batches(
                 X_train, y_train, self.FLAGS.batch_size
@@ -144,18 +146,20 @@ class Framework():
             for i, (X_batch, y_batch) in enumerate(zip(X_batches, y_batches)):
                 # Optimatize using batch
                 loss, norm, step = self.step(X_batch, y_batch)
-                self.experiment.log_loss(loss)
+                recent_losses[i % loss_hist_length] = loss
+                avg_loss = float(np.mean(recent_losses))
+                self.experiment.log_loss(avg_loss)  # Use smoothed loss
                 self.experiment.log_metric("norm", norm)
 
                 # Print relevant params
-                num_complete = int(20 * (self.FLAGS.batch_size*i/num_data))
+                num_complete = int(20 * (self.FLAGS.batch_size * i / num_data))
                 sys.stdout.write('\r')
                 sys.stdout.write(
-                    "EPOCH %d: (Loss: %.3f) [%-20s] (%d/%d) [norm: %.2f] [step: %d]"
+                    "EPOCH %d: (Batch Loss: %.3f | Avg Loss %.3f) [%-20s] (%d/%d) [norm: %.2f] [step: %d] [lr: %f]"
                     % (
-                        cur_epoch + 1, loss, '=' * num_complete,
-                        min((i + 1) * self.FLAGS.batch_size, num_data),
-                        num_data, norm, step
+                        cur_epoch, loss, avg_loss, '=' * num_complete,
+                        min(i * self.FLAGS.batch_size, num_data),
+                        num_data, norm, step, self.lr
                     )
                 )
                 sys.stdout.flush()
@@ -165,20 +169,24 @@ class Framework():
             sys.stdout.write('\n')
 
             # Evaluate accuracy
-            eval_size = min(len(X_val), len(X_train)) // 10
-
             train_acc = self.evaluate(X_train, y_train, eval_size)
-            print("Training Accuracy: {}\ton {} examples".format(train_acc, eval_size))
+            print("Training Accuracy: {}\ton {} examples".format(
+                train_acc, eval_size))
             self.experiment.log_metric("train_acc", train_acc)
 
             val_acc = self.evaluate(X_val, y_val, eval_size)
-            print("Validation Accuracy: {}\ton {} examples".format(val_acc, eval_size))
+            print("Validation Accuracy: {}\ton {} examples".format(
+                val_acc, eval_size))
             self.experiment.log_accuracy(val_acc)
 
             # Early stopping
             if val_acc > best_acc:
                 best_acc = val_acc
                 save_path = self.saver.save(
-                    self.sess, os.path.join(self.save_dir, 'model.ckpt')
+                    self.sess, os.path.join(self.save_dir, self.FLAGS.save_name)
                 )
                 print("Model saved to: {}".format(save_path))
+
+            # Decay learning rate
+            if cur_epoch % 10 == 0:
+                self.lr /= 2

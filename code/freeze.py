@@ -34,52 +34,58 @@ raw PCM data (as floats in the range -1.0 to 1.0) called 'decoded_sample_data',
 and the output is called 'labels_softmax'.
 
 """
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
-import argparse
-import os.path
+import os
 import sys
 
 import tensorflow as tf
-
 from tensorflow.contrib.framework.python.ops import audio_ops as contrib_audio
-import input_data
-import models
 from tensorflow.python.framework import graph_util
 
-FLAGS = None
+import utils
+import data_utils
+import framework
+import models
 
-# TODO: modify this to work with my model format
+# Loading options
+tf.app.flags.DEFINE_string("model_architecture", "specify_a_model", "The name of the model.")
+tf.app.flags.DEFINE_string("models_dir", "models", "Directory to save tf model checkpoints in")
+tf.app.flags.DEFINE_string("save_name", "model.ckpt", "Name under which to save the model.")
+tf.app.flags.DEFINE_string("output_file", "pb/model.pb", "Where to save the frozen graph.")
 
+# Dont mess with these for now:
+tf.app.flags.DEFINE_integer("sample_rate", 16000, "Expected sample rate of the wavs.")
+tf.app.flags.DEFINE_integer("clip_duration_ms", 1000, "Expected duration in milliseconds of the wavs.")
+tf.app.flags.DEFINE_integer("clip_stride_ms", 30, "How often to run recognition. Useful for models with cache.")
+tf.app.flags.DEFINE_integer("dct_coefficient_count", 40, "How many bins to use for the MFCC fingerprint.")
+tf.app.flags.DEFINE_float("window_size_ms", 30.0, "How long each spectrogram timeslice is.")
+tf.app.flags.DEFINE_float("window_stride_ms", 10.0, "How long the stride is between spectrogram timeslices.")
+tf.app.flags.DEFINE_float("time_shift_ms", 100.0, "Range to randomly shift the training audio by in time.")
+
+# Required for setting up model
+tf.app.flags.DEFINE_float("learning_rate", 1e-3, "Learning rate.")
+tf.app.flags.DEFINE_integer("batch_size", 128, "Number of examples per batch.")
+tf.app.flags.DEFINE_integer("epochs", 30, "Number of epochs to train.")
+
+FLAGS = tf.app.flags.FLAGS
+FLAGS.restore = True
+FLAGS.learning_rate = 0
+FLAGS.batch_size = 1
+FLAGS.epoch = 0
+
+# TODO: test this on a raspberry pi
 
 # Load correct model and add nodes needed for practical use
-def create_inference_graph(wanted_words, sample_rate, clip_duration_ms,
-                           clip_stride_ms, window_size_ms, window_stride_ms,
-                           dct_coefficient_count, model_architecture):
+def create_inference_graph_and_load_variables(sess, FLAGS):
     """Creates an audio model with the nodes needed for inference.
 
     Uses the supplied arguments to create a model, and inserts the input and
-    output nodes that are needed to use the graph for inference.
-
-    Args:
-        wanted_words: Comma-separated list of the words we're trying to recognize.
-        sample_rate: How many samples per second are in the input audio files.
-        clip_duration_ms: How many samples to analyze for the audio pattern.
-        clip_stride_ms: How often to run recognition. Useful for models with cache.
-        window_size_ms: Time slice duration to estimate frequencies from.
-        window_stride_ms: How far apart time slices should be.
-        dct_coefficient_count: Number of frequency bands to analyze.
-        model_architecture: Name of the kind of model to generate.
+    output the trained model graph.
     """
-
-    words_list = input_data.prepare_words_list(wanted_words.split(','))
-    model_settings = models.prepare_model_settings(
-        len(words_list), sample_rate, clip_duration_ms, window_size_ms,
-        window_stride_ms, dct_coefficient_count
+    model_settings = data_utils.prepare_settings(
+        FLAGS.num_classes, FLAGS.sample_rate, FLAGS.clip_duration_ms,
+        FLAGS.window_size_ms, FLAGS.window_stride_ms, FLAGS.dct_coefficient_count
     )
-    runtime_settings = {'clip_stride_ms': clip_stride_ms}
+    runtime_settings = {'clip_stride_ms': FLAGS.clip_stride_ms}
 
     wav_data_placeholder = tf.placeholder(tf.string, [], name='wav_data')
     decoded_sample_data = contrib_audio.decode_wav(
@@ -97,36 +103,32 @@ def create_inference_graph(wanted_words, sample_rate, clip_duration_ms,
     fingerprint_input = contrib_audio.mfcc(
         spectrogram,
         decoded_sample_data.sample_rate,
-        dct_coefficient_count=dct_coefficient_count
+        dct_coefficient_count=FLAGS.dct_coefficient_count
     )
     fingerprint_frequency_size = model_settings['dct_coefficient_count']
     fingerprint_time_size = model_settings['spectrogram_length']
     reshaped_input = tf.reshape(
         fingerprint_input,
-        [-1, fingerprint_time_size * fingerprint_frequency_size]
+        [fingerprint_time_size, fingerprint_frequency_size, 1]
     )
 
-    logits = models.create_model(
-        reshaped_input,
-        model_settings,
-        model_architecture,
-        is_training=False,
-        runtime_settings=runtime_settings
-    )
+    # Init model and load variables
+    model = models.create_model(FLAGS)  
+    fw = framework.Framework(sess, model, None, FLAGS)
+    model.set_inputs(reshaped_input)
 
-    # Create an output to use for inference. Is this needed?
-    tf.nn.softmax(logits, name='labels_softmax')
+    # Create an output to use for inference
+    tf.nn.softmax(model.get_raw_scores(), name='labels_softmax')
 
 
 def main(_):
     # Create the model and load its weights.
+    FLAGS.output_path = os.path.join(FLAGS.models_dir, FLAGS.output_file)
+    FLAGS.num_classes = len(utils.small_label_to_num)
+
+    # Get the trained model
     sess = tf.InteractiveSession()
-    create_inference_graph(FLAGS.wanted_words, FLAGS.sample_rate,
-        FLAGS.clip_duration_ms, FLAGS.clip_stride_ms,
-        FLAGS.window_size_ms, FLAGS.window_stride_ms,
-        FLAGS.dct_coefficient_count, FLAGS.model_architecture
-    )
-    models.load_variables_from_checkpoint(sess, FLAGS.start_checkpoint)
+    create_inference_graph_and_load_variables(sess, FLAGS)
 
     # Turn all the variables into inline constants inside the graph and save it.
     frozen_graph_def = graph_util.convert_variables_to_constants(
@@ -134,61 +136,12 @@ def main(_):
     )
     tf.train.write_graph(
         frozen_graph_def,
-        os.path.dirname(FLAGS.output_file),
-        os.path.basename(FLAGS.output_file),
+        os.path.dirname(FLAGS.output_path),
+        os.path.basename(FLAGS.output_path),
         as_text=False
     )
-    tf.logging.info('Saved frozen graph to %s', FLAGS.output_file)
+    tf.logging.info('Saved frozen graph to %s', FLAGS.output_path)
 
 
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        '--sample_rate',
-        type=int,
-        default=16000,
-        help='Expected sample rate of the wavs',)
-    parser.add_argument(
-        '--clip_duration_ms',
-        type=int,
-        default=1000,
-        help='Expected duration in milliseconds of the wavs',)
-    parser.add_argument(
-        '--clip_stride_ms',
-        type=int,
-        default=30,
-        help='How often to run recognition. Useful for models with cache.',)
-    parser.add_argument(
-        '--window_size_ms',
-        type=float,
-        default=30.0,
-        help='How long each spectrogram timeslice is',)
-    parser.add_argument(
-        '--window_stride_ms',
-        type=float,
-        default=10.0,
-        help='How long the stride is between spectrogram timeslices',)
-    parser.add_argument(
-        '--dct_coefficient_count',
-        type=int,
-        default=40,
-        help='How many bins to use for the MFCC fingerprint',)
-    parser.add_argument(
-        '--start_checkpoint',
-        type=str,
-        default='',
-        help='If specified, restore this pretrained model before any training.')
-    parser.add_argument(
-        '--model_architecture',
-        type=str,
-        default='conv',
-        help='What model architecture to use')
-    parser.add_argument(
-        '--wanted_words',
-        type=str,
-        default='yes,no,up,down,left,right,on,off,stop,go',
-        help='Words to use (others will be added to an unknown label)',)
-    parser.add_argument(
-        '--output_file', type=str, help='Where to save the frozen graph.')
-    FLAGS, unparsed = parser.parse_known_args()
-    tf.app.run(main=main, argv=[sys.argv[0]] + unparsed)
+if __name__ == "__main__":
+    tf.app.run()

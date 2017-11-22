@@ -12,6 +12,8 @@ def create_model(FLAGS):
         return SimpleConv(FLAGS)
     if FLAGS.model_architecture == "BiggerConv":
         return BiggerConv(FLAGS)
+    if FLAGS.model_architecture == "DeeperConv":
+        return DeeperConv(FLAGS)
     else:
         raise Exception("Invalid model architecture")
 
@@ -20,7 +22,9 @@ class Model():
     def __init__(self, FLAGS):
         self.FLAGS = FLAGS
 
-    def forward(self, X, is_training):
+    def forward(self, is_training):
+        # x = self.get_inputs()
+        # return self.raw_scores
         raise Exception("NotImplementedError")
 
     def loss(self, y):
@@ -71,6 +75,18 @@ class Model():
 
         return train_op, global_norm
 
+    # For freezing end to end graph
+    def get_raw_scores(self):
+        return self.raw_scores
+
+    # For freezing end to end graph
+    def get_inputs(self):
+        return self.inputs
+
+    # Needed for freezing graph
+    def set_inputs(self, x):
+        self.inputs = x
+
 
 #############################################################################
 
@@ -78,8 +94,9 @@ class Baseline(Model):
     def __init__(self, FLAGS):
         super().__init__(FLAGS)
 
-    def forward(self, x, is_training):
-        x = layers.batch_normalization(x, training=is_training)
+    def forward(self, is_training):
+        x = self.get_inputs()
+        x = layers.batch_normalization(self.inputs, training=is_training)
         x = layers.dense(inputs=x, units=100, activation=tf.nn.relu)
         self.raw_scores = layers.dense(
             inputs=x, units=self.FLAGS.num_classes, activation=None
@@ -92,10 +109,11 @@ class SimpleConv(Model):
     def __init__(self, FLAGS):
         super().__init__(FLAGS)
 
-    def forward(self, x, is_training):
+    def forward(self, is_training):
         # Assumes [Batch, Time, Freq, Chan]
+        x = self.get_inputs()
         x = layers.conv2d(
-            x, filters=64, kernel_size=[20, 8], strides=1,
+            self.inputs, filters=64, kernel_size=[20, 8], strides=1,
             activation=tf.nn.relu
         )
         x = layers.max_pooling2d(    # Pool over frequency only
@@ -117,10 +135,11 @@ class BiggerConv(Model):
     def __init__(self, FLAGS):
         super().__init__(FLAGS)
 
-    def forward(self, x, is_training):
+    def forward(self, is_training):
         # Assumes [Batch, Time, Freq, Chan]
+        x = self.get_inputs()
         x = layers.conv2d(
-            x, filters=128, kernel_size=[20, 8], strides=1,
+            self.inputs, filters=128, kernel_size=[20, 8], strides=1,
             activation=tf.nn.relu
         )
         x = layers.max_pooling2d(    # Pool over frequency only
@@ -137,3 +156,45 @@ class BiggerConv(Model):
         )
         return self.raw_scores
 
+
+class DeeperConv(Model):
+    def __init__(self, FLAGS):
+        super().__init__(FLAGS)
+
+    def forward(self, is_training):
+        # Assumes [Batch, Time, Freq, Chan]
+        x = self.get_inputs()
+        self.inputs = layers.conv2d(
+            x, filters=128, kernel_size=[3, 3], strides=1,
+            activation=tf.nn.relu
+        )
+        print(x.shape)
+        x = layers.conv2d(
+            x, filters=128, kernel_size=[3, 3], strides=1,
+            activation=tf.nn.relu
+        )
+        print(x.shape)
+        x = layers.max_pooling2d(
+            x, pool_size=[3, 3], strides=[3, 3]
+        )
+        print(x.shape)
+        x = layers.conv2d(
+            x, filters=256, kernel_size=[3, 3], strides=1,
+            activation=tf.nn.relu
+        )
+        print(x.shape)
+        x = layers.conv2d(
+            x, filters=256, kernel_size=[3, 3], strides=1,
+            activation=tf.nn.relu
+        )
+        print(x.shape)
+        x = layers.max_pooling2d(
+            x, pool_size=[3, 3], strides=[3, 3]
+        )
+        print(x.shape)
+        x = tf.contrib.layers.flatten(x)
+        print(x.shape)
+        self.raw_scores = layers.dense(  # Linear map to output
+            inputs=x, units=self.FLAGS.num_classes, activation=None
+        )
+        return self.raw_scores
