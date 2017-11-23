@@ -2,6 +2,7 @@ import random
 import math
 import numpy as np
 import tensorflow as tf
+import random
 
 label_to_num = {
     "bed": 0,
@@ -36,6 +37,7 @@ label_to_num = {
     "zero": 29,
     "_background_noise_": 30
 }
+num_to_label = {v: k for k, v in label_to_num.items()}
 
 small_label_to_num = {
     "yes": 0,
@@ -51,6 +53,7 @@ small_label_to_num = {
     "silence": 10,
     "unknown": 11
 }
+small_num_to_label = {v: k for k, v in small_label_to_num.items()}
 
 
 def gather_params(FLAGS):
@@ -102,3 +105,9 @@ def get_num_classes(FLAGS):
         return len(small_label_to_num)
     else:
         return len(label_to_num)
+
+
+def set_seeds():
+    np.random.seed(239340)
+    tf.set_random_seed(252)
+    random.seed(23490)

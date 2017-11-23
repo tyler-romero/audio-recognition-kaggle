@@ -22,8 +22,7 @@ class Model():
     def __init__(self, FLAGS):
         self.FLAGS = FLAGS
 
-    def forward(self, is_training):
-        # x = self.get_inputs()
+    def forward(self, x, is_training):
         # return self.raw_scores
         raise Exception("NotImplementedError")
 
@@ -57,7 +56,6 @@ class Model():
         decayed_lr: the current lr after exponential decay
         global_norm: the current global_norm
         """
-
         optimizer = self.get_optimizer(lr)
 
         grads_and_vars = optimizer.compute_gradients(
@@ -79,14 +77,6 @@ class Model():
     def get_raw_scores(self):
         return self.raw_scores
 
-    # For freezing end to end graph
-    def get_inputs(self):
-        return self.inputs
-
-    # Needed for freezing graph
-    def set_inputs(self, x):
-        self.inputs = x
-
 
 #############################################################################
 
@@ -94,7 +84,7 @@ class Baseline(Model):
     def __init__(self, FLAGS):
         super().__init__(FLAGS)
 
-    def forward(self, is_training):
+    def forward(self, x, is_training):
         x = self.get_inputs()
         x = layers.batch_normalization(self.inputs, training=is_training)
         x = layers.dense(inputs=x, units=100, activation=tf.nn.relu)
@@ -109,9 +99,8 @@ class SimpleConv(Model):
     def __init__(self, FLAGS):
         super().__init__(FLAGS)
 
-    def forward(self, is_training):
+    def forward(self, x, is_training):
         # Assumes [Batch, Time, Freq, Chan]
-        x = self.get_inputs()
         x = layers.conv2d(
             self.inputs, filters=64, kernel_size=[20, 8], strides=1,
             activation=tf.nn.relu
@@ -135,9 +124,8 @@ class BiggerConv(Model):
     def __init__(self, FLAGS):
         super().__init__(FLAGS)
 
-    def forward(self, is_training):
+    def forward(self, x, is_training):
         # Assumes [Batch, Time, Freq, Chan]
-        x = self.get_inputs()
         x = layers.conv2d(
             self.inputs, filters=128, kernel_size=[20, 8], strides=1,
             activation=tf.nn.relu
@@ -161,9 +149,8 @@ class DeeperConv(Model):
     def __init__(self, FLAGS):
         super().__init__(FLAGS)
 
-    def forward(self, is_training):
+    def forward(self, x, is_training):
         # Assumes [Batch, Time, Freq, Chan]
-        x = self.get_inputs()
         self.inputs = layers.conv2d(
             x, filters=128, kernel_size=[3, 3], strides=1,
             activation=tf.nn.relu

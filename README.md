@@ -37,11 +37,50 @@ python code/train.py --model_architecture SimpleConv
 
 Go to [comet.ml](https://www.comet.ml/tyler-romero) to view run metrics
 
+## Freezing the model graph
+
+In order to test on a raspberry pi, we need to freeze the model graph. This performs several processing steps:
+
+1. It reads in a trained model from a checkpoint.
+2. It modifies the model graph to perform data preprocessing and classification.
+3. It converts all tf variables to tf constants.
+4. It saves the model graph to a binary protocol buffer (*.pb file)
+
+Run:
+
+```bash
+./freeze.sh
+```
+
+Internally, it is doing something like this:
+
+```bash
+mkdir -p models/pb
+python code/freeze.py --model_architecture SimpleConv
+```
+
+
+## Testing / Getting predictions
+
+In order to make predictions on the test set, first freeze the graph, then run:
+
+```bash
+./test.sh
+```
+
+Internally, it is doing something like this:
+
+```bash
+python code/test.py
+```
+
+
+
 ## The benchmark
 
 * Meant to be run on a raspberry pi 3
 * Used for the actual competition
-* The benchmarking binary takes a pretrained tensorflow graph
+* The benchmarking binary takes a pretrained tensorflow graph (output of freeze)
 
 ```bash
 ./benchmark.sh

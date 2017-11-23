@@ -1,70 +1,67 @@
 import os
 import sys
+from tqdm import tqdm
+from glob import glob
 
 import numpy as np
 import tensorflow as tf
-from comet_ml import Experiment
+from tensorflow.core.framework import graph_pb2
+from tensorflow.python.ops import io_ops
 
-import data_utils
-import models
-import framework
 import utils
 
-
-tf.app.flags.DEFINE_string("model_architecture", "Baseline", "The name of the model.")
-tf.app.flags.DEFINE_string("data_dir", "data/train", "tiny-imagenet directory (default ./data/tiny-imagenet-200)")
-tf.app.flags.DEFINE_string("models_dir", "models", "Directory to save tf model checkpoints in")
-tf.app.flags.DEFINE_string("save_name", "model.ckpt", "Name under which to save the model.")
-tf.app.flags.DEFINE_bool("debug", False, "Run on a small set of data for debugging.")
-tf.app.flags.DEFINE_bool("competition_labels", True, "Run only on the ten competiton lables.")
-
-# Dont mess with these for now:
-tf.app.flags.DEFINE_integer("sample_rate", 16000, "Expected sample rate of the wavs.")
-tf.app.flags.DEFINE_integer("clip_duration_ms", 1000, "Expected duration in milliseconds of the wavs.")
-tf.app.flags.DEFINE_integer("clip_stride_ms", 30, "How often to run recognition. Useful for models with cache.")
-tf.app.flags.DEFINE_integer("dct_coefficient_count", 40, "How many bins to use for the MFCC fingerprint.")
-tf.app.flags.DEFINE_float("window_size_ms", 30.0, "How long each spectrogram timeslice is.")
-tf.app.flags.DEFINE_float("window_stride_ms", 10.0, "How long the stride is between spectrogram timeslices.")
-tf.app.flags.DEFINE_float("time_shift_ms", 100.0, "Range to randomly shift the training audio by in time.")
-
-# TODO: Allow for different data types ie tf.float16 instead of tf.float32
+tf.app.flags.DEFINE_string("pb", "models/pb/model.pb", "")
+tf.app.flags.DEFINE_string("output_file", "answers.csv", "File to write the output predictions to.")
+tf.app.flags.DEFINE_string("data_dir", "data/test/audio", "tiny-imagenet directory (default ./data/tiny-imagenet-200)")
 
 FLAGS = tf.app.flags.FLAGS
-FLAGS.restore = True
-FLAGS.learning_rate = 0
-FLAGS.batch_size = 1
-FLAGS.epochs = 0
 
 
+# NOTE: This takes about an hour to run on a laptop
 def main(_):
-    print("Model Architecture: {}".format(FLAGS.model_architecture))
+    g = tf.Graph()
+    with g.as_default():
+        graph_def = tf.GraphDef()
+        with open(FLAGS.pb, "rb") as f:
+            graph_def.ParseFromString(f.read())
 
-    # Adjust some parameters
-    if FLAGS.debug:
-        FLAGS.competition_labels = False
-        print("RUNNING IN DEBUG MODE")
+        input_wav_placeholder = tf.placeholder(
+            tf.string, [], name="input_wav"
+        )
+        wav_data = io_ops.read_file(input_wav_placeholder)
+        returned_tensors = tf.import_graph_def(
+            graph_def,
+            input_map={"wav_data": wav_data},
+            return_elements=["labels_softmax:0"],
+            name=""
+        )
+        labels_softmax = returned_tensors[0]
+        prediction = tf.argmax(labels_softmax, axis=1)
+        
+        print("Input: ", input_wav_placeholder)
+        print("Output: ", prediction)
 
-    FLAGS.num_classes = utils.get_num_classes(FLAGS)
+        tensor_names = [n.name for n in g.as_graph_def().node]
+        print(tensor_names)
 
-    X_train, y_train = data_utils.load_dataset_tf(FLAGS, mode="train")
-    X_val, y_val = data_utils.load_dataset_tf(FLAGS, mode="val")
-    X_test = data_utils.load_dataset_tf(FLAGS, mode="test")
+    # Write graph out to make sure it makes sense
+    # tf.summary.FileWriter("logs", g).close()
 
-    tf.logging.set_verbosity(tf.logging.INFO)
+    with tf.Session(graph=g) as sess:
+        with open(FLAGS.output_file, 'w') as f:
+            print("fname,label", file=f)
+            X_test = glob(os.path.join(FLAGS.data_dir, "*.wav"))
+            print("Number of test files: {}\n".format(len(X_test)))
 
-    # Start a new, DEFAULT TensorFlow session.
-    sess = tf.InteractiveSession()
+            for wav_file_path in tqdm(X_test):
+                fname = os.path.basename(wav_file_path)
 
-    model = models.create_model(FLAGS)  
-    fw = framework.Framework(sess, model, None, FLAGS)
+                input_feed = {input_wav_placeholder: wav_file_path}
+                pred = int(prediction.eval(input_feed, sess))
 
-    num_params = int(utils.get_number_of_params())
-    model_size = num_params * 4
-    print("\nNumber of trainable parameters: {}".format(num_params))
-    print("Model is ~ {} bytes out of max 5000000 bytes\n".format(model_size))
-
-    for X in X_train:
-        pred = fw.classify(X_train)
+                label = utils.small_num_to_label[pred]
+                line = "{},{}".format(fname, label)
+                print(line, file=f)
 
 
 if __name__ == "__main__":

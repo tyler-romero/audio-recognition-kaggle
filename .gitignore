@@ -107,3 +107,4 @@ models/
 log/
 *.wav
 *.pb
+answers.csv

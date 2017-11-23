@@ -4,6 +4,7 @@ import sys
 import numpy as np
 import tensorflow as tf
 from comet_ml import Experiment
+from glob import glob
 
 import data_utils
 import models
@@ -62,6 +63,8 @@ def main(_):
 
     # Start a new, DEFAULT TensorFlow session.
     sess = tf.InteractiveSession()
+
+    utils.set_seeds()  # Get deterministic behavior?
 
     model = models.create_model(FLAGS)  
     fw = framework.Framework(sess, model, experiment, FLAGS)

@@ -61,11 +61,6 @@ tf.app.flags.DEFINE_float("window_size_ms", 30.0, "How long each spectrogram tim
 tf.app.flags.DEFINE_float("window_stride_ms", 10.0, "How long the stride is between spectrogram timeslices.")
 tf.app.flags.DEFINE_float("time_shift_ms", 100.0, "Range to randomly shift the training audio by in time.")
 
-# Required for setting up model
-tf.app.flags.DEFINE_float("learning_rate", 1e-3, "Learning rate.")
-tf.app.flags.DEFINE_integer("batch_size", 128, "Number of examples per batch.")
-tf.app.flags.DEFINE_integer("epochs", 30, "Number of epochs to train.")
-
 FLAGS = tf.app.flags.FLAGS
 FLAGS.restore = True
 FLAGS.learning_rate = 0
@@ -109,16 +104,16 @@ def create_inference_graph_and_load_variables(sess, FLAGS):
     fingerprint_time_size = model_settings['spectrogram_length']
     reshaped_input = tf.reshape(
         fingerprint_input,
-        [fingerprint_time_size, fingerprint_frequency_size, 1]
+        [-1, fingerprint_time_size, fingerprint_frequency_size, 1],
+        name="model_input"
     )
 
     # Init model and load variables
-    model = models.create_model(FLAGS)  
-    fw = framework.Framework(sess, model, None, FLAGS)
-    model.set_inputs(reshaped_input)
+    model = models.create_model(FLAGS)
+    fw = framework.Framework(sess, model, None, FLAGS, input_tensor=reshaped_input)
 
     # Create an output to use for inference
-    tf.nn.softmax(model.get_raw_scores(), name='labels_softmax')
+    logits = tf.nn.softmax(model.get_raw_scores(), name='labels_softmax')
 
 
 def main(_):
@@ -134,6 +129,7 @@ def main(_):
     frozen_graph_def = graph_util.convert_variables_to_constants(
         sess, sess.graph_def, ['labels_softmax']
     )
+
     tf.train.write_graph(
         frozen_graph_def,
         os.path.dirname(FLAGS.output_path),
@@ -141,6 +137,17 @@ def main(_):
         as_text=False
     )
     tf.logging.info('Saved frozen graph to %s', FLAGS.output_path)
+
+    # Write out graph for debugging
+    # g = tf.Graph()
+    # with g.as_default():
+    #     returned_tensors = tf.import_graph_def(
+    #         frozen_graph_def,
+    #         input_map=None,
+    #         return_elements=["labels_softmax"],
+    #         name=""
+    #     )
+    #     tf.summary.FileWriter("logs", g).close()
 
 
 if __name__ == "__main__":

@@ -10,7 +10,7 @@ from utils import get_batches
 
 
 class Framework():
-    def __init__(self, sess, model, experiment, FLAGS):
+    def __init__(self, sess, model, experiment, FLAGS, input_tensor=None):
         self.sess = sess
         self.model = model
         self.experiment = experiment
@@ -23,8 +23,11 @@ class Framework():
         )
 
         # Set up placeholders
+        if input_tensor is None:
+            self.X = tf.placeholder(tf.float32, [None, 98, 40, 1], name="X")
+        else:  # For freezing the graph
+            self.X = input_tensor
         self.learning_rate = tf.placeholder(tf.float32, name="learning_rate")
-        self.X = tf.placeholder(tf.float32, [None, 98, 40, 1], name="X")
         self.y = tf.placeholder(tf.int32, [None], name="y")
         self.is_training = tf.placeholder(tf.bool, name="is_training")
 
@@ -52,7 +55,7 @@ class Framework():
         if FLAGS.restore:
             self.saver.restore(
                 self.sess, os.path.join(self.save_dir, self.FLAGS.save_name)
-                )
+            )
             print("Model restored.")
             print("Global Step: {}".format(self.global_step.eval()))
 
@@ -65,8 +68,7 @@ class Framework():
     # Set up the forward pass
     def setup_system(self):
         with vs.variable_scope("classify"):
-            self.model.set_inputs(self.X)
-            raw_scores = self.model.forward(self.is_training)
+            raw_scores = self.model.forward(self.X, self.is_training)
             self.y_out = tf.nn.softmax(raw_scores, name="softmax")
 
     # Set up the optimization step
