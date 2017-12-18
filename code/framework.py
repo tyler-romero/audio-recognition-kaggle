@@ -145,7 +145,7 @@ class Framework():
             )
 
             # Training loop
-            for i, (X_batch, y_batch) in enumerate(zip(X_batches, y_batches)):
+            for i, (X_batch, y_batch) in enumerate(zip(X_batches, y_batches), start=1):
                 # Optimatize using batch
                 loss, norm, step = self.step(X_batch, y_batch)
                 recent_losses[i % loss_hist_length] = loss

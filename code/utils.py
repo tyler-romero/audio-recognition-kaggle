@@ -1,3 +1,5 @@
+import os
+from glob import glob
 import random
 import math
 import numpy as np
@@ -35,7 +37,7 @@ label_to_num = {
     "wow": 27,
     "yes": 28,
     "zero": 29,
-    "_background_noise_": 30
+    "silence": 30
 }
 num_to_label = {v: k for k, v in label_to_num.items()}
 
@@ -101,7 +103,7 @@ def calc_range(l):
 def get_num_classes(FLAGS):
     if FLAGS.debug:
         return 3
-    elif FLAGS.competition_labels:
+    elif FLAGS.small_label_set:
         return len(small_label_to_num)
     else:
         return len(label_to_num)

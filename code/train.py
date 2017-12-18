@@ -14,13 +14,13 @@ import utils
 
 tf.app.flags.DEFINE_float("learning_rate", 1e-3, "Learning rate.")
 tf.app.flags.DEFINE_integer("batch_size", 128, "Number of examples per batch.")
-tf.app.flags.DEFINE_integer("epochs", 30, "Number of epochs to train.")
+tf.app.flags.DEFINE_integer("epochs", 50, "Number of epochs to train. We use early stopping though.")
 tf.app.flags.DEFINE_string("model_architecture", "Baseline", "The name of the model.")
-tf.app.flags.DEFINE_string("data_dir", "data/train", "tiny-imagenet directory (default ./data/tiny-imagenet-200)")
+tf.app.flags.DEFINE_string("data_dir", "data/train", "Audio data directory (default ./data/train")
 tf.app.flags.DEFINE_string("models_dir", "models", "Directory to save tf model checkpoints in")
 tf.app.flags.DEFINE_string("save_name", "model.ckpt", "Name under which to save the model.")
 tf.app.flags.DEFINE_bool("debug", False, "Run on a small set of data for debugging.")
-tf.app.flags.DEFINE_bool("competition_labels", True, "Run only on the ten competiton lables.")
+tf.app.flags.DEFINE_bool("small_label_set", True, "Run only on the ten competition lables.")
 tf.app.flags.DEFINE_bool("restore", False, "Restore model from checkpoint.")
 
 # Dont mess with these for now:
@@ -33,7 +33,7 @@ tf.app.flags.DEFINE_float("window_stride_ms", 10.0, "How long the stride is betw
 tf.app.flags.DEFINE_float("time_shift_ms", 100.0, "Range to randomly shift the training audio by in time.")
 
 # TODO: Allow for different data types ie tf.float16 instead of tf.float32
-
+# tf.app.flags.DEFINE_bool("tf.float16", False, "Data type to use for model parameters.")
 
 FLAGS = tf.app.flags.FLAGS
 
@@ -43,7 +43,7 @@ def main(_):
 
     # Adjust some parameters
     if FLAGS.debug:
-        FLAGS.competition_labels = False
+        FLAGS.small_label_set = False
         print("RUNNING IN DEBUG MODE")
 
     FLAGS.num_classes = utils.get_num_classes(FLAGS)

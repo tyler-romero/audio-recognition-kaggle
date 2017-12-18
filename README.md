@@ -41,10 +41,10 @@ Go to [comet.ml](https://www.comet.ml/tyler-romero) to view run metrics
 
 In order to test on a raspberry pi, we need to freeze the model graph. This performs several processing steps:
 
-1. It reads in a trained model from a checkpoint.
-2. It modifies the model graph to perform data preprocessing and classification.
-3. It converts all tf variables to tf constants.
-4. It saves the model graph to a binary protocol buffer (*.pb file)
+    1. It reads in a trained model from a checkpoint.
+    2. It modifies the model graph to perform data preprocessing and classification.
+    3. It converts all tf variables to tf constants.
+    4. It saves the model graph to a binary protocol buffer (*.pb file)
 
 Run:
 
@@ -59,7 +59,6 @@ mkdir -p models/pb
 python code/freeze.py --model_architecture SimpleConv
 ```
 
-
 ## Testing / Getting predictions
 
 In order to make predictions on the test set, first freeze the graph, then run:
@@ -73,8 +72,6 @@ Internally, it is doing something like this:
 ```bash
 python code/test.py
 ```
-
-
 
 ## The benchmark
 
@@ -104,6 +101,16 @@ Internally, it is doing this:
 ```
 
 This is what will be run in order to actually evaluate our model on a raspberry pi, so we need to make this work.
+
+## Other
+
+I've been using Comet.ml for logging training data, so go to train.py and set your own Comet API Key.
+
+## Goals and Metrics
+
+* Place Bronze in the Kaggle Competitio (Top 100)
+* Achieve a test accuracy of 0.85 or better
+* Get this to work well on a Raspberry Pi 3
 
 ## References
 

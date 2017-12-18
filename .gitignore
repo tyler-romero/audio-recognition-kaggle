@@ -108,3 +108,4 @@ log/
 *.wav
 *.pb
 answers.csv
+start_gpu.sh

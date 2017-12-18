@@ -1,5 +1,5 @@
 import os
-from glob import glob
+from glob import glob, iglob
 import numpy as np
 from tqdm import tqdm
 
@@ -7,6 +7,20 @@ from tensorflow.python.ops import io_ops
 from tensorflow.contrib.framework.python.ops import audio_ops as contrib_audio
 
 from utils import *
+
+# TODO: balance classes
+# TODO: add some silence / unknown labels to validation set
+
+
+def get_index_from_label(label, FLAGS):
+    if FLAGS.small_label_set:
+        if label in small_label_to_num:
+            index = small_label_to_num[label]
+        else:
+            index = small_label_to_num["unknown"]
+    else:
+        index = label_to_num[label]
+    return index
 
 
 # TODO: Data augmentation
@@ -18,49 +32,55 @@ def load_dataset_tf(FLAGS, mode="train"):
         raise Exception("Unrecognized mode")
 
     with tf.Session() as sess:
+        # Set up the tf audio loading graph
         loader = AudioLoader(FLAGS)
 
         # Get file paths
         val_list_file = os.path.join(FLAGS.data_dir, "validation_list.txt")
         test_list_file = os.path.join(FLAGS.data_dir, "testing_list.txt")
-        audio_dir = os.path.join(FLAGS.data_dir, "audio/*/")
+        audio_glob = os.path.join(FLAGS.data_dir, "audio/*/")
 
-        # Load metadata
+        # Load helper data
         val_list = [line.strip() for line in open(val_list_file, 'r')]
         test_list = [line.strip() for line in open(test_list_file, 'r')]
-        dir_list = glob(audio_dir)
+        dir_list = glob(audio_glob)
 
+        # In debug mode, restrict to three classes
         if FLAGS.debug:
             dir_list = dir_list[:3]
 
         # Iterate over each class directory
         X, y = [], []
-        for label_dir in tqdm(dir_list):
-            file_list = glob(os.path.join(label_dir, "*.wav"))
+        for label_dir in dir_list:
+            file_list = iglob(os.path.join(label_dir, "*.wav"))
+            short_file_list = ['/'.join(f.split('/')[3:]) for f in file_list]
             label = label_dir.split('/')[-2]
 
-            if FLAGS.competition_labels and label not in small_label_to_num:
+            if mode == "val":  # Load only the val files
+                files_to_load = set(short_file_list).intersection(val_list)
+            else:  # Load all except the val files  # TODO: Should I ignore the test data?
+                files_to_load = set(short_file_list).difference(val_list)
+
+            if FLAGS.small_label_set and label not in small_label_to_num:
                     continue
+            else:
+                print("Loading {}".format(label))
 
             # Iterate over the files in each directory
-            for file_path in file_list:
-                file_path_short = '/'.join(file_path.split('/')[3:])
+            for f_short in files_to_load:
+                f = os.path.join(FLAGS.data_dir, "audio", f_short)
 
-                # If getting val data, only get data in val list
-                if mode == "val":
-                    if file_path_short not in val_list:
-                        continue         
-                # If getting test data, dont get data in val or test list    
-                elif file_path_short in val_list or file_path_short in test_list:
-                    continue
-
-                mcff = loader.get_mcff(sess, file_path)
+                # Load and preprocess data
+                mcff = loader.get_mcff(sess, f)
+                
+                index = get_index_from_label(label, FLAGS)
+                
+                # Append data/label to list
                 X.append(mcff)
-                if FLAGS.competition_labels:
-                    y.append(small_label_to_num[label])
-                else:
-                    y.append(label_to_num[label])
-        
+                y.append(index)
+
+        # TODO: Add silence
+
         print("X: ", len(X), "X shape: ", X[0].shape)
         print("y: ", len(y))
         return X, y
