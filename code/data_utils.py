@@ -43,7 +43,8 @@ def load_dataset_tf(FLAGS, mode="train"):
         # Load helper data
         val_list = [line.strip() for line in open(val_list_file, 'r')]
         test_list = [line.strip() for line in open(test_list_file, 'r')]
-        dir_list = glob(audio_glob)
+        # dir_list = glob(audio_glob)
+        dir_list = list(label_to_num.keys())
 
         # In debug mode, restrict to three classes
         if FLAGS.debug:
