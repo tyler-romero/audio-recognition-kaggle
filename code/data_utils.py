@@ -43,8 +43,9 @@ def load_dataset_tf(FLAGS, mode="train"):
         # Load helper data
         val_list = [line.strip() for line in open(val_list_file, 'r')]
         test_list = [line.strip() for line in open(test_list_file, 'r')]
-        # dir_list = glob(audio_glob)
-        dir_list = list(label_to_num.keys())
+        dir_list = glob(audio_glob)
+        dir_list.remove('data/train/audio/unknown/')
+        dir_list.remove('data/train/audio/_background_noise_/')
 
         # In debug mode, restrict to three classes
         if FLAGS.debug:
@@ -65,7 +66,7 @@ def load_dataset_tf(FLAGS, mode="train"):
             if FLAGS.small_label_set and label not in small_label_to_num:
                     continue
             else:
-                print("Loading {}".format(label))
+                print("Loading {}\t{}".format(label_dir, label))
 
             # Iterate over the files in each directory
             for f_short in files_to_load:
